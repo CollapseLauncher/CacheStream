@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -40,15 +41,24 @@ namespace Hi3Helper.EncTool
 
         ~CacheStream() => Dispose();
 
-        private int GenerateSeed(Stream s)
+        private int GenerateSeed(Stream stream, int preSeed = -252217917)
         {
             // Get the seed and read the data for the key generation
             byte[] data = new byte[_dataLen];
-            using (BinaryReader br = new BinaryReader(s, Encoding.UTF8, true))
-            {
-                seedBox[0] = br.ReadInt32();
-                s.Read(data, 0, _dataLen);
-            }
+            using BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true);
+
+            int seedAdd = 0;
+
+            // Get the flag byte and boxes
+            byte flag = reader.ReadByte();
+            if (flag != 1 && preSeed != 0) seedAdd = preSeed;
+
+            // Pass 1: Get the first seedBox
+            seedBox[0] = reader.ReadInt32();
+            // Pass the add seed + first seedBox to RNG and get the next value
+            seedBox[0] = new Random(seedBox[0] + seedAdd).Next();
+
+            stream.Read(data, 0, _dataLen);
 
             // Phase 1: Generate the seeds
             for (int i = 0, j = 1; j < _seedBoxLen; i++, j++)
@@ -59,10 +69,10 @@ namespace Hi3Helper.EncTool
             // Phase 2: Recalculate the seeds
             for (int i = 0, j = 1; i < _seedBoxLen; i++, j++)
             {
-                int preSeed = (seedBox[i]) ^ ((seedBox[i]) ^ (seedBox[j % _seedBoxLen])) & 0x7FFFFFFF;
-                seedBox[i] = (preSeed >> 1) ^ seedBox[(i + 397) % _seedBoxLen];
+                int box = (seedBox[i]) ^ ((seedBox[i]) ^ (seedBox[j % _seedBoxLen])) & 0x7FFFFFFF;
+                seedBox[i] = (box >> 1) ^ seedBox[(i + 397) % _seedBoxLen];
 
-                if ((preSeed & 1) != 0) unchecked { seedBox[i] ^= (int)0x9908B0DF; }
+                if ((box & 1) != 0) unchecked { seedBox[i] ^= (int)0x9908B0DF; }
             }
 
             // Phase 3: Generate the keys
@@ -150,6 +160,7 @@ namespace Hi3Helper.EncTool
 
         public override void SetLength(long value) => throw new NotSupportedException();
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ReadXOR(Span<byte> buffer, int i, long realLastPos)
         {
             long realKeyOffset = _keyOffset + realLastPos;
