@@ -60,13 +60,13 @@ namespace Hi3Helper.EncTool
 
             stream.Read(data, 0, _dataLen);
 
-            // Phase 1: Generate the seeds
+            // Phase 2: Generate the seeds
             for (int i = 0, j = 1; j < _seedBoxLen; i++, j++)
             {
                 seedBox[j] = (int)(j + 0x6C078965 * (seedBox[i] ^ (uint)(seedBox[i] >> 30)));
             }
 
-            // Phase 2: Recalculate the seeds
+            // Phase 3: Recalculate the seeds
             for (int i = 0, j = 1; i < _seedBoxLen; i++, j++)
             {
                 int box = (seedBox[i]) ^ ((seedBox[i]) ^ (seedBox[j % _seedBoxLen])) & 0x7FFFFFFF;
@@ -75,7 +75,7 @@ namespace Hi3Helper.EncTool
                 if ((box & 1) != 0) unchecked { seedBox[i] ^= (int)0x9908B0DF; }
             }
 
-            // Phase 3: Generate the keys
+            // Phase 4: Generate the keys
             for (int i = 0, step = 0; i < _dataLen; i++, step += 4)
             {
                 unsafe
@@ -92,7 +92,7 @@ namespace Hi3Helper.EncTool
                 }
             }
 
-            // Phase 4: Return the offset
+            // Phase 5: Return the offset
             return GetSeed(_dataLen);
         }
 
