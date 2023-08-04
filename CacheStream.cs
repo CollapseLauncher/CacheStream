@@ -21,27 +21,27 @@ namespace Hi3Helper.EncTool
 
         private protected readonly Stream _stream;
         private bool _allowDispose;
-        public CacheStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare fileShare = FileShare.Read, FileOptions fileOptions = FileOptions.None, bool keepOpen = false)
+        public CacheStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare fileShare = FileShare.Read, FileOptions fileOptions = FileOptions.None, bool keepOpen = false, int preSeed = 0)
             : base()
         {
             _stream = new FileStream(path, fileMode, fileAccess, fileShare, 4 << 10, fileOptions);
-            _keyOffset = GenerateSeed(_stream);
+            _keyOffset = GenerateSeed(_stream, preSeed);
             _streamOffset = _stream.Position;
             _allowDispose = !keepOpen;
         }
 
-        public CacheStream(Stream stream, bool keepOpen = false)
+        public CacheStream(Stream stream, bool keepOpen = false, int preSeed = 0)
             : base()
         {
             _stream = stream;
-            _keyOffset = GenerateSeed(_stream);
+            _keyOffset = GenerateSeed(_stream, preSeed);
             _streamOffset = _stream.Position;
             _allowDispose = !keepOpen;
         }
 
         ~CacheStream() => Dispose();
 
-        private int GenerateSeed(Stream stream, int preSeed = -252217917)
+        private int GenerateSeed(Stream stream, int preSeed)
         {
             // Get the seed and read the data for the key generation
             byte[] data = new byte[_dataLen];
