@@ -58,7 +58,7 @@ namespace Hi3Helper.EncTool
             // Pass the add seed + first seedBox to RNG and get the next value
             seedBox[0] = new Random(seedBox[0] + seedAdd).Next();
 
-            stream.Read(data, 0, _dataLen);
+            _ = stream.Read(data, 0, _dataLen);
 
             // Phase 2: Generate the seeds
             for (int i = 0, j = 1; j < _seedBoxLen; i++, j++)
