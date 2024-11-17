@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
+// Resharper disable all    
+
 namespace Hi3Helper.EncTool
 {
     public class CacheStream : Stream
