@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Hi3Helper.EncTool
 {
-    public class CacheStream : Stream
+    public partial class CacheStream : Stream
     {
         private const int _seedBoxLen = 0x270;
         private const int _keyLen = 0x200;
