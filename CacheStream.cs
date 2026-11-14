@@ -13,21 +13,20 @@ namespace Hi3Helper.EncTool
         private const int _seedBoxLen = 0x270;
         private const int _keyLen = 0x200;
         private const int _dataLen = 0x80;
-        private const int _bufLen = 0x1000;
 
-        private int _keyOffset;
+        private readonly int  _keyOffset;
         private readonly long _streamOffset;
 
-        private static int[] seedBox = new int[_seedBoxLen];
-        private static byte[] key = new byte[_keyLen];
+        private static readonly int[]  seedBox = new int[_seedBoxLen];
+        private static readonly byte[] key     = new byte[_keyLen];
 
         private protected readonly Stream _stream;
         private bool _allowDispose;
         public CacheStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare fileShare = FileShare.Read, FileOptions fileOptions = FileOptions.None, bool keepOpen = false, int preSeed = 0)
             : base()
         {
-            _stream = new FileStream(path, fileMode, fileAccess, fileShare, 4 << 10, fileOptions);
-            _keyOffset = GenerateSeed(_stream, preSeed);
+            _stream       = new FileStream(path, fileMode, fileAccess, fileShare, 4 << 10, fileOptions);
+            _keyOffset    = GenerateSeed(_stream, preSeed);
             _streamOffset = _stream.Position;
             _allowDispose = !keepOpen;
         }
@@ -35,8 +34,8 @@ namespace Hi3Helper.EncTool
         public CacheStream(Stream stream, bool keepOpen = false, int preSeed = 0)
             : base()
         {
-            _stream = stream;
-            _keyOffset = GenerateSeed(_stream, preSeed);
+            _stream       = stream;
+            _keyOffset    = GenerateSeed(_stream, preSeed);
             _streamOffset = _stream.Position;
             _allowDispose = !keepOpen;
         }
@@ -46,8 +45,8 @@ namespace Hi3Helper.EncTool
         private int GenerateSeed(Stream stream, int preSeed)
         {
             // Get the seed and read the data for the key generation
-            byte[] data = new byte[_dataLen];
-            using BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true);
+            Span<byte>         data   = stackalloc byte[_dataLen];
+            using BinaryReader reader = new(stream, Encoding.UTF8, true);
 
             int seedAdd = 0;
 
@@ -60,7 +59,7 @@ namespace Hi3Helper.EncTool
             // Pass the add seed + first seedBox to RNG and get the next value
             seedBox[0] = new Random(seedBox[0] + seedAdd).Next();
 
-            _ = stream.Read(data, 0, _dataLen);
+            _ = stream.Read(data[.._dataLen]);
 
             // Phase 2: Generate the seeds
             for (int i = 0, j = 1; j < _seedBoxLen; i++, j++)
@@ -71,7 +70,7 @@ namespace Hi3Helper.EncTool
             // Phase 3: Recalculate the seeds
             for (int i = 0, j = 1; i < _seedBoxLen; i++, j++)
             {
-                int box = (seedBox[i]) ^ ((seedBox[i]) ^ (seedBox[j % _seedBoxLen])) & 0x7FFFFFFF;
+                int box = seedBox[i] ^ (seedBox[i] ^ seedBox[j % _seedBoxLen]) & 0x7FFFFFFF;
                 seedBox[i] = (box >> 1) ^ seedBox[(i + 397) % _seedBoxLen];
 
                 if ((box & 1) != 0) unchecked { seedBox[i] ^= (int)0x9908B0DF; }
@@ -82,10 +81,10 @@ namespace Hi3Helper.EncTool
             {
                 unsafe
                 {
-                    int postSeed = GetSeed(i);
+                    int   postSeed    = GetSeed(i, seedBox);
                     byte* bytePointer = (byte*)&postSeed;
 
-                    bytePointer[0] ^= data[(i * 4) % _dataLen];
+                    bytePointer[0] ^= data[i * 4 % _dataLen];
                     bytePointer[1] ^= data[(i * 4 + 7) % _dataLen];
                     bytePointer[2] ^= data[(i * 4 + 13) % _dataLen];
                     bytePointer[3] ^= data[(i * 4 + 11) % _dataLen];
@@ -95,17 +94,17 @@ namespace Hi3Helper.EncTool
             }
 
             // Phase 5: Return the offset
-            return GetSeed(_dataLen);
+            return GetSeed(_dataLen, seedBox);
         }
 
-        private int GetSeed(int i)
+        private static int GetSeed(int i, ReadOnlySpan<int> seedBox)
         {
-            int lastSeed = seedBox[i];
+            int lastSeed  = seedBox[i];
             int shiftSeed = lastSeed >> 11;
 
-            long seedA = ((((shiftSeed) ^ lastSeed) & 0xFF3A58AD) << 7) ^ (shiftSeed) ^ lastSeed;
-            int seedB = (int)(((seedA & 0xFFFFDF8C) << 15) ^ seedA);
-            int seedResult = seedB ^ (seedB >> 18);
+            long seedA      = (((shiftSeed ^ lastSeed) & 0xFF3A58AD) << 7) ^ shiftSeed ^ lastSeed;
+            int  seedB      = (int)(((seedA & 0xFFFFDF8C) << 15) ^ seedA);
+            int  seedResult = seedB ^ (seedB >> 18);
 
             return seedResult;
         }
@@ -121,7 +120,7 @@ namespace Hi3Helper.EncTool
         private int ReadBytes(byte[] buffer, int offset, int count)
         {
             long lastPos = Position;
-            int i = _stream.Read(buffer, offset, count);
+            int  i       = _stream.Read(buffer, offset, count);
             ReadXOR(buffer, i, lastPos);
             return i;
         }
@@ -167,9 +166,7 @@ namespace Hi3Helper.EncTool
         {
             long realKeyOffset = _keyOffset + realLastPos;
             for (int j = 0; j < i; j++)
-            {
                 buffer[j] ^= key[realKeyOffset++ % _keyLen];
-            }
         }
 
         protected override void Dispose(bool disposing)
